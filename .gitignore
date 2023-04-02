@@ -136,3 +136,6 @@ dmypy.json
 *.csv
 wandb_key.json
 *.parquet
+
+# pytorch model
+*.pth
