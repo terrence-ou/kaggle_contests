@@ -139,3 +139,5 @@ wandb_key.json
 
 # pytorch model
 *.pth
+
+wandb/

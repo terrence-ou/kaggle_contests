@@ -8,6 +8,7 @@ from scipy import spatial
 import wandb
 import timm
 from timm.utils import AverageMeter
+from tqdm import tqdm
 
 from sentence_transformers import SentenceTransformer
 import torch
@@ -44,7 +45,7 @@ class DiffusionDataset(Dataset):
 class DiffusionCollator():
     def __init__(self):
         self.st_model = SentenceTransformer(
-            "sentence-transformer/all-MiniLM-L6-v2",
+            "sentence-transformers/all-MiniLM-L6-v2",
             device="cpu"
         )
     
@@ -93,12 +94,18 @@ def cosine_similarity(y_trues, y_preds):
     ])
 
 # training function
-def train(train_split, valid_split, model_name, input_size, batch_size, num_epochs, lr):
+def train(train_split, valid_split, 
+          model_name, input_size, 
+          batch_size, num_epochs, lr,
+          use_wandb=False):
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"\nTraining device: {device}")
 
+    # Getting dataloaders
     train_loader, valid_loader = get_dataloaders(train_split, valid_split, input_size, batch_size)
+    
+    # Setting up model
     model = timm.create_model(
         model_name=model_name,
         pretrained=True,
@@ -118,16 +125,133 @@ def train(train_split, valid_split, model_name, input_size, batch_size, num_epoc
 
     best_score = -1.0
 
+    # Training loop
     for epoch in range(num_epochs):
         torch.cuda.empty_cache()
 
-        train_meter = {
+        train_meters = {
             "loss": AverageMeter(),
             "cos": AverageMeter()
         }
 
         model.train()
+        train_bar = tqdm(total=len(train_loader), dynamic_ncols=True,
+                         leave=False, position=0, desc="Train")
+
+        # A single pass train
+        for X, y in train_loader:
+            X, y = X.to(device), y.to(device)
+
+            optimizer.zero_grad()
+            
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                X_out = model(X)
+                target = torch.ones(X.shape[0], device=device)
+                loss = criterion(X_out, y, target)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+
+            scheduler.step()
+
+            train_loss = loss.item()
+            train_cos = cosine_similarity(
+                X_out.detach().cpu().numpy(),
+                y.detach().cpu().numpy()
+            )
+
+            train_meters["loss"].update(train_loss, n=X.shape[0])
+            train_meters["cos"].update(train_cos, n=X.shape[0])
+
+            curr_lr = float(optimizer.param_groups[0]["lr"]) 
+            train_bar.set_postfix(
+                loss="{:.04f}".format(train_meters["loss"].avg),
+                cos="{:.04f}".format(train_meters["cos"].avg),
+                lr="{:.06f}".format(curr_lr)
+            )
+            train_bar.update()
+        train_bar.close()
+
+        print("Epoch {:d}\n\t train loss={:.4f}, train cos={:.4f}, lr={:.6f}".format(
+            epoch + 1,
+            train_meters["loss"].avg,
+            train_meters["cos"].avg,
+            curr_lr))
+
+        # A single pass validation
+        valid_bar = tqdm(total=len(valid_loader), dynamic_ncols=True,
+                         leave=False, position=0, desc="Valid")
+        
+        valid_meters = {
+            "loss": AverageMeter(),
+            "cos": AverageMeter()
+        }
+
+        model.eval()
+        for X, y in valid_loader:
+            X, y = X.to(device), y.to(device)
+
+            with torch.no_grad():
+                X_out = model(X)
+                target = torch.zeros(X.shape[0], device=device)
+                loss = criterion(X_out, y, target)
+
+            val_loss = loss.item()
+            val_cos = cosine_similarity(X_out.detach().cpu().numpy(),
+                                        y.detach().cpu().numpy())
+            
+            valid_meters["loss"].update(val_loss, n=X.shape[0])
+            valid_meters["cos"].update(val_cos, n=X.shape[0])
+
+            valid_bar.set_postfix(
+                loss="{:.04f}".format(train_meters["loss"].avg),
+                cos="{:.04f}".format(train_meters["cos"].avg),
+            )
+            valid_bar.update()
+        valid_bar.close()
+
+        print("\t val loss={:.4f}, val cos={:.4f}".format(
+            valid_meters["loss"].avg,
+            valid_meters["cos"].avg))
+
+        if use_wandb:
+            wandb.log({"train_loss": train_meters["loss"].avg,
+                       "train_cos": train_meters["cos"].avg,
+                       "valid_loss": valid_meters["loss"].avg,
+                       "valid_cos": valid_meters["cos"].avg,
+                       "learning_rate": curr_lr})
+
+        if valid_meters["cos"].avg > best_score:
+            best_score = valid_meters["cos"].avg
+            print("Saving model...")
+            torch.save(model.state_dict(), f"{model_name}.pth")
+        
+        del X, y
 
 
 if __name__ == "__main__":
-    pass
+    # Setting up WandB
+    run = wandb.init(
+        project="diffusion-to-prompt",
+        notes="baseline experiment",
+        tags=["baseline"]
+    )
+
+    wandb.config = {
+        "model_name": "vit_base_patch16_224",
+        "input_size": 224,
+        "batch_size": 64,
+        "num_epochs": 10,
+        "lr": 1e-4
+    }
+    
+    #Reading dataframe
+    df = pd.read_csv("diffusiondf.csv")
+    
+    train_split, valid_split = train_test_split(df, test_size=0.1)
+    train(train_split, valid_split, 
+          wandb.config["model_name"],
+          wandb.config["input_size"],
+          wandb.config["batch_size"],
+          wandb.config["num_epochs"],
+          wandb.config["lr"])
