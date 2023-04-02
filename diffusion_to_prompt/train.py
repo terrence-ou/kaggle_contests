@@ -193,19 +193,19 @@ def train(train_split, valid_split,
 
             with torch.no_grad():
                 X_out = model(X)
-                target = torch.zeros(X.shape[0], device=device)
+                target = torch.ones(X.shape[0], device=device)
                 loss = criterion(X_out, y, target)
 
-            val_loss = loss.item()
-            val_cos = cosine_similarity(X_out.detach().cpu().numpy(),
-                                        y.detach().cpu().numpy())
+                val_loss = loss.item()
+                val_cos = cosine_similarity(X_out.detach().cpu().numpy(),
+                                            y.detach().cpu().numpy())
             
             valid_meters["loss"].update(val_loss, n=X.shape[0])
             valid_meters["cos"].update(val_cos, n=X.shape[0])
 
             valid_bar.set_postfix(
-                loss="{:.04f}".format(train_meters["loss"].avg),
-                cos="{:.04f}".format(train_meters["cos"].avg),
+                loss="{:.04f}".format(valid_meters["loss"].avg),
+                cos="{:.04f}".format(valid_meters["cos"].avg)
             )
             valid_bar.update()
         valid_bar.close()
@@ -220,7 +220,7 @@ def train(train_split, valid_split,
                        "valid_loss": valid_meters["loss"].avg,
                        "valid_cos": valid_meters["cos"].avg,
                        "learning_rate": curr_lr})
-
+        
         if valid_meters["cos"].avg > best_score:
             best_score = valid_meters["cos"].avg
             print("Saving model...")
@@ -254,4 +254,6 @@ if __name__ == "__main__":
           wandb.config["input_size"],
           wandb.config["batch_size"],
           wandb.config["num_epochs"],
-          wandb.config["lr"])
+          wandb.config["lr"],
+          use_wandb=True
+          )
