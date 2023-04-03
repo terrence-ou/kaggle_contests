@@ -120,7 +120,7 @@ def train(train_split, valid_split,
 
     total_iters = num_epochs * len(train_loader)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, amsgrad=True, weight_decay=1e-5)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
     criterion = torch.nn.CosineEmbeddingLoss()
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_iters, eta_min=1e-6)
@@ -147,13 +147,15 @@ def train(train_split, valid_split,
 
             optimizer.zero_grad()
             
-            with torch.autocast(device_type="cuda", dtype=torch.float16):
+            with torch.autocast(device_type="cuda"):
                 X_out = model(X)
                 target = torch.ones(X.shape[0], device=device)
                 loss = criterion(X_out, y, target)
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
+            # loss.backward()
+            # optimizer.step()
 
             scheduler.step()
 
@@ -236,12 +238,12 @@ if __name__ == "__main__":
     # Setting up WandB
     run = wandb.init(
         project="diffusion-to-prompt",
-        notes="random flip 0.5",
-        tags=["random_flip", "weight_decay 0"]
+        notes="large model",
+        tags=["large model"]
     )
 
     wandb.config = {
-        "model_name": "vit_base_patch16_224",
+        "model_name": "vit_large_patch16_224",
         "input_size": 224,
         "batch_size": 64,
         "num_epochs": 10,
