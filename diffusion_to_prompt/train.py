@@ -67,7 +67,8 @@ def get_dataloaders(train_split, valid_split, input_size, batch_size):
         transforms.Resize(input_size),
         transforms.ToTensor(),
         transforms.RandomHorizontalFlip(0.5),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        transforms.RandomRotation(10),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
     ])
 
     train_dataset = DiffusionDataset(train_split, transform)
@@ -119,7 +120,7 @@ def train(train_split, valid_split,
 
     total_iters = num_epochs * len(train_loader)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, amsgrad=True, weight_decay=0)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, amsgrad=True, weight_decay=1e-5)
     criterion = torch.nn.CosineEmbeddingLoss()
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_iters, eta_min=1e-6)
