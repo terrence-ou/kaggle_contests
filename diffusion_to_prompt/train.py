@@ -1,5 +1,5 @@
-
 from PIL import Image
+import random
 
 import numpy as np
 import pandas as pd
@@ -35,6 +35,7 @@ class DiffusionDataset(Dataset):
         row = self.df.iloc[index]
         image = Image.open(row["filepath"])
         image = self.transform(image)
+
         prompt = row["prompt"]
         return image, prompt
 
@@ -65,6 +66,7 @@ def get_dataloaders(train_split, valid_split, input_size, batch_size):
     transform = transforms.Compose([
         transforms.Resize(input_size),
         transforms.ToTensor(),
+        transforms.RandomHorizontalFlip(0.5),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
@@ -117,7 +119,7 @@ def train(train_split, valid_split,
 
     total_iters = num_epochs * len(train_loader)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, amsgrad=True)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, amsgrad=True, weight_decay=0)
     criterion = torch.nn.CosineEmbeddingLoss()
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_iters, eta_min=1e-6)
@@ -233,8 +235,8 @@ if __name__ == "__main__":
     # Setting up WandB
     run = wandb.init(
         project="diffusion-to-prompt",
-        notes="baseline experiment",
-        tags=["baseline"]
+        notes="random flip 0.5",
+        tags=["random_flip", "weight_decay 0"]
     )
 
     wandb.config = {
