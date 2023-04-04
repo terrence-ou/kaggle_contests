@@ -63,16 +63,23 @@ class DiffusionCollator():
 # Get dataloaders
 def get_dataloaders(train_split, valid_split, input_size, batch_size):
     
-    transform = transforms.Compose([
+    transform_train = transforms.Compose([
         transforms.Resize(input_size),
         transforms.ToTensor(),
         transforms.RandomHorizontalFlip(0.5),
-        transforms.RandomRotation(10),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        transforms.RandomRotation(15),
+        transforms.ColorJitter(0.2, 0.2, 0.2, 0.2),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
-    train_dataset = DiffusionDataset(train_split, transform)
-    valid_dataset = DiffusionDataset(valid_split, transform)
+    transform_valid = transforms.Compose([
+        transforms.Resize(input_size),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+
+    train_dataset = DiffusionDataset(train_split, transform_train)
+    valid_dataset = DiffusionDataset(valid_split, transform_valid)
     collate_fn = DiffusionCollator()
 
     train_loader = DataLoader(train_dataset, 
@@ -120,10 +127,11 @@ def train(train_split, valid_split,
 
     total_iters = num_epochs * len(train_loader)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
+    optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=0)
     criterion = torch.nn.CosineEmbeddingLoss()
 
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_iters, eta_min=1e-6)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_iters, eta_min=0)
     scaler = torch.cuda.amp.GradScaler()
 
     best_score = -1.0
@@ -238,8 +246,8 @@ if __name__ == "__main__":
     # Setting up WandB
     run = wandb.init(
         project="diffusion-to-prompt",
-        notes="large model",
-        tags=["large model"]
+        notes="large model, SGD",
+        tags=["large model", "SGD"]
     )
 
     wandb.config = {
@@ -247,7 +255,7 @@ if __name__ == "__main__":
         "input_size": 224,
         "batch_size": 64,
         "num_epochs": 10,
-        "lr": 1e-4
+        "lr": 3e-2
     }
     
     #Reading dataframe
