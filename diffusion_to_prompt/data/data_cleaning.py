@@ -22,7 +22,7 @@ def pre_processing():
     df = pd.read_parquet("metadata.parquet", columns=["image_name", "prompt", "width", "height"])
     
     # filter height and width
-    df = df[(df["width"] == 512) & (df["height"] == 512)]
+    df = df[(df["width"] == df["height"])]
     print("\tfile num. after size filtering: ", len(df))
     
     # filter out short and invalid prompts
@@ -32,8 +32,8 @@ def pre_processing():
     print("\tfile num. after prompt filtering: ", len(df))
     
     # Remove duplicates
-    df["head"] = df["prompt"].str[:15]
-    df["tail"] = df["prompt"].str[-15:]
+    df["head"] = df["prompt"].str[:30]
+    df["tail"] = df["prompt"].str[-30:]
     df.drop_duplicates(subset="head", inplace=True)
     df.drop_duplicates(subset="tail", inplace=True)
     df.reset_index(drop=True, inplace=True)

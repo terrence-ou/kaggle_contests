@@ -67,7 +67,7 @@ def get_dataloaders(train_split, valid_split, input_size, batch_size):
         transforms.Resize(input_size),
         transforms.ToTensor(),
         transforms.RandomHorizontalFlip(0.5),
-        transforms.RandomRotation(15),
+        # transforms.RandomRotation(15),
         transforms.ColorJitter(0.2, 0.2, 0.2, 0.2),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
@@ -251,7 +251,7 @@ if __name__ == "__main__":
     )
 
     wandb.config = {
-        "model_name": "vit_large_patch16_224",
+        "model_name": "vit_large_patch14_224_clip_laion2b",
         "input_size": 224,
         "batch_size": 64,
         "num_epochs": 10,
