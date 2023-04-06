@@ -32,8 +32,8 @@ def pre_processing():
     print("\tfile num. after prompt filtering: ", len(df))
     
     # Remove duplicates
-    df["head"] = df["prompt"].str[:30]
-    df["tail"] = df["prompt"].str[-30:]
+    df["head"] = df["prompt"].str[:60]
+    df["tail"] = df["prompt"].str[-60:]
     df.drop_duplicates(subset="head", inplace=True)
     df.drop_duplicates(subset="tail", inplace=True)
     df.reset_index(drop=True, inplace=True)
