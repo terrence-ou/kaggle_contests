@@ -124,11 +124,13 @@ def train(train_split, valid_split,
 
     model.set_grad_checkpointing()
     model.to(device)
+    # model.load_state_dict(torch.load('./vit__patch14_224_clip_laion2b.pth'))
+    print('Model loaded...')
 
     total_iters = num_epochs * len(train_loader)
 
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
-    optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=0)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4, amsgrad=True)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=0)
     criterion = torch.nn.CosineEmbeddingLoss()
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_iters, eta_min=0)
@@ -246,16 +248,16 @@ if __name__ == "__main__":
     # Setting up WandB
     run = wandb.init(
         project="diffusion-to-prompt",
-        notes="large model, SGD",
-        tags=["large model", "SGD"]
+        notes="large model, AdamW",
+        tags=["large model", "AdamW"]
     )
 
     wandb.config = {
         "model_name": "vit_large_patch14_224_clip_laion2b",
         "input_size": 224,
-        "batch_size": 64,
+        "batch_size": 128,
         "num_epochs": 10,
-        "lr": 3e-2
+        "lr": 1e-4 #3e-2
     }
     
     #Reading dataframe
